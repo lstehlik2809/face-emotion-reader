@@ -198,8 +198,38 @@ button:disabled { opacity: 0.5; cursor: default; }
   border-radius: 10px;
   font-size: 0.875rem;
 }
+.smoothing-control { display: flex; gap: 4px; }
+.smoothing-control #smoothBtn { flex: 1; min-width: 0; padding-inline: 4px; overflow-wrap: anywhere; }
+.controls .info-button { flex: 0 0 44px; padding: 0; }
+.info-button span {
+  display: inline-grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  line-height: 1;
+}
+.control-note { margin: 0; color: var(--muted); font-size: 0.82rem; }
+.smoothing-help { grid-column: 1 / -1; padding: 8px; border-radius: 8px; background: var(--bg); }
+.background-option { grid-column: 1 / -1; padding: 0 4px; }
+.background-option label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  width: fit-content;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.background-option input { width: 1rem; height: 1rem; margin: 0; }
+@media (max-width: 360px) {
+  .controls { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+  .smoothing-control { grid-column: 1 / -1; }
+}
 @media (min-width: 500px) {
-  .controls { grid-template-columns: 1.4fr 0.7fr 1fr 1fr; }
+  .controls { grid-template-columns: 1.4fr 0.7fr 1fr minmax(160px, 1.25fr); }
 }
 .controls[hidden] { display: none; }
 
@@ -379,7 +409,15 @@ canvas.timeline {
         <button id="recBtn" aria-pressed="false">Start recording</button>
         <button id="pauseBtn">Pause</button>
         <button id="flipBtn">Switch camera</button>
-        <button id="smoothBtn" aria-pressed="true">Smoothing on</button>
+        <div class="smoothing-control">
+          <button id="smoothBtn" aria-pressed="true">Smoothing on</button>
+          <button type="button" class="info-button" id="smoothHelpBtn" aria-label="About smoothing" aria-expanded="false" aria-controls="smoothHelp"><span aria-hidden="true">i</span></button>
+        </div>
+        <p class="control-note smoothing-help" id="smoothHelp" hidden>Smoothing steadies the live scores. Turn it off to see brief or fast expressions as they happen. Scores may jump more.</p>
+        <div class="background-option">
+          <label><input type="checkbox" id="keepRunning" autocomplete="off" aria-describedby="backgroundNote"> Keep running in background</label>
+          <p class="control-note" id="backgroundNote">The camera and live scores can keep running while you’re away, along with any active recording. Your browser may slow or suspend them.</p>
+        </div>
       </div>
       <p class="capture-result" id="captureResult" role="status"></p>
       <div class="error" id="error" role="alert" hidden></div>
@@ -619,6 +657,17 @@ import {
 
   // ---------- Camera ----------
   const startBtn = $("startBtn"), pauseBtn = $("pauseBtn"), flipBtn = $("flipBtn");
+  const keepRunning = $("keepRunning");
+
+  function shouldPauseInBackground() {
+    return document.hidden && !keepRunning.checked;
+  }
+
+  function pauseIfHidden() {
+    if (shouldPauseInBackground() && running && !paused && !switchingCamera) pauseBtn.click();
+  }
+
+  keepRunning.addEventListener("change", pauseIfHidden);
 
   function stopCamera() {
     if (stream) stream.getTracks().forEach(t => t.stop());
@@ -683,6 +732,7 @@ import {
       await loadModels();
       showCameraControls(true);
       setStatus("Live");
+      pauseIfHidden();
       scheduleFrame();
     } catch (err) {
       console.error(err);
@@ -738,7 +788,7 @@ import {
       switchingCamera = false;
       flipBtn.disabled = pauseBtn.disabled = false;
       updateCaptureAvailability();
-      if (document.hidden && running && !paused) pauseBtn.click();
+      pauseIfHidden();
       scheduleFrame();
     }
   });
@@ -748,6 +798,12 @@ import {
     $("smoothBtn").textContent = smoothing ? "Smoothing on" : "Smoothing off";
     $("smoothBtn").setAttribute("aria-pressed", String(smoothing));
     smoothed = null;
+  });
+
+  const smoothHelpBtn = $("smoothHelpBtn"), smoothHelp = $("smoothHelp");
+  smoothHelpBtn.addEventListener("click", () => {
+    smoothHelp.hidden = !smoothHelp.hidden;
+    smoothHelpBtn.setAttribute("aria-expanded", String(!smoothHelp.hidden));
   });
 
   // ---------- Teaching ----------
@@ -918,6 +974,7 @@ import {
   // ---------- Main loop ----------
   const FACE_SIZE = 224;
   const MIN_FRAME_MS = 100;
+  const FRAME_POLL_MS = 16;
   const crop = document.createElement("canvas");
   crop.width = crop.height = FACE_SIZE;
   const cropCtx = crop.getContext("2d", { willReadFrequently: true });
@@ -948,17 +1005,20 @@ import {
   }
 
   function canProcessFrame() {
-    return running && !paused && !switchingCamera;
+    return running && !paused && !switchingCamera && !shouldPauseInBackground();
   }
 
   function scheduleFrame() {
     if (framePending || !canProcessFrame()) return;
     // Keep this flag set until inference finishes, including across pause and camera changes.
     framePending = true;
-    requestAnimationFrame(loop);
+    // Timers can run when the browser stops painting this page.
+    const delay = Math.ceil(lastFrameAt + MIN_FRAME_MS - performance.now());
+    setTimeout(loop, Math.max(FRAME_POLL_MS, delay));
   }
 
-  async function loop(ts) {
+  async function loop() {
+    const ts = performance.now();
     const version = frameVersion;
     try {
       if (canProcessFrame() && video.readyState >= 2 &&
@@ -1403,10 +1463,11 @@ import {
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
-      endTeach("Teaching canceled when you left this tab. Resume the camera and try again.");
-      if (running && !paused) pauseBtn.click();
+      endTeach("Teaching canceled when you left this tab. Return to the tab to try again.");
+      pauseIfHidden();
     }
     updateCaptureAvailability();
+    scheduleFrame();
   });
 })();
 </script>

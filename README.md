@@ -8,6 +8,12 @@ Face Reader uses your camera to estimate which of eight facial expression patter
 
 Allow camera access after selecting **Start camera**. Models and browser libraries download when you start the camera for the first time. Video frames are processed in your browser. Recordings contain scores and timestamps.
 
+## Smoothing and background use
+
+**Smoothing** steadies the live scores. Turn it off to see brief or fast expressions as they happen.
+
+Select **Keep running in background** after starting the camera to keep scoring and continue an active recording while you switch tabs or apps. The camera stays active. Browsers may slow or suspend background processing. Select **Pause** to pause scoring and recording samples.
+
 ## Teach Face Reader
 
 With the camera running, open **Personalize scores** and select **Teach Neutral**. Sit and look at the screen as you normally do. If you use a low webcam or have a full beard, capture your examples with your usual setup and appearance. After the countdown, keep your brow, eyes, and mouth relaxed and hold still for about three seconds.
