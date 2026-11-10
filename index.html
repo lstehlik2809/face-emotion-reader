@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Face Reader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #E6ECE8;
+  --surface: #F6F9F7;
+  --ink: #1D2A2F;
+  --muted: #5E6C70;
+  --line: #C9D3CE;
+  --happy: #E9A21F;
+  --sad: #3F67B5;
+  --angry: #D1405A;
+  --surprised: #8A5FC4;
+  --fearful: #2E9A8F;
+  --disgusted: #6E8A2B;
+  --neutral: #8C979A;
+  --contempt: #AD633B;
+  color-scheme: light;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141C1F; --surface: #1D272B; --ink: #E4ECE8; --muted: #9AA8AC; --line: #2E3B40;
+    --happy: #F5B63D; --sad: #6F95E0; --angry: #F06A80; --surprised: #B08BEA; --fearful: #4CC2B5; --disgusted: #A0BF4E; --neutral: #A7B2B5;
+    --contempt: #DC9470;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141C1F; --surface: #1D272B; --ink: #E4ECE8; --muted: #9AA8AC; --line: #2E3B40;
+  --happy: #F5B63D; --sad: #6F95E0; --angry: #F06A80; --surprised: #B08BEA; --fearful: #4CC2B5; --disgusted: #A0BF4E; --neutral: #A7B2B5;
+  --contempt: #DC9470;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+main {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px 16px 28px;
+}
+header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+h1 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.status { font-size: 0.85rem; color: var(--muted); text-align: right; }
+
+/* Stage */
+.stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: 28px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+video, canvas.overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mirrored { transform: scaleX(-1); }
+.verdict {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 48px 20px 18px;
+  background: linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0));
+  color: #fff;
+  pointer-events: none;
+}
+.verdict .word {
+  font-size: clamp(2.6rem, 13vw, 4.2rem);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.035em;
+  margin: 0;
+  transition: color 0.4s ease;
+}
+.verdict .sub { font-size: 0.95rem; opacity: 0.88; margin-top: 6px; }
+.verdict[hidden] { display: none; }
+
+.intro {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 24px;
+  gap: 14px;
+}
+.intro p { margin: 0; color: var(--muted); max-width: 34ch; }
+.intro .lead { color: var(--ink); font-size: 1.5rem; font-weight: 600; line-height: 1.15; letter-spacing: -0.015em; max-width: 16ch; }
+.intro[hidden] { display: none; }
+
+/* Face ring motif on the intro screen */
+.ring {
+  position: absolute;
+  top: 12%; left: 50%;
+  width: 54%; aspect-ratio: 3 / 4;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  border: 3px dashed var(--line);
+}
+
+button {
+  font: inherit;
+  font-weight: 600;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 10px 16px;
+  cursor: pointer;
+  min-height: 44px;
+}
+button.primary {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+  padding: 14px 22px;
+  font-size: 1.05rem;
+  align-self: flex-start;
+}
+button:focus-visible { outline: 3px solid var(--sad); outline-offset: 2px; }
+button:disabled { opacity: 0.5; cursor: default; }
+
+.controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 14px 0 6px;
+}
+.controls[hidden] { display: none; }
+
+/* Readout */
+.readout { margin-top: 14px; }
+.row {
+  display: grid;
+  grid-template-columns: 88px 1fr 40px 72px;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+}
+.row .name { font-size: 0.95rem; }
+.row .pct { font-variant-numeric: tabular-nums; text-align: right; color: var(--muted); font-size: 0.9rem; }
+.track {
+  height: 12px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.fill { height: 100%; width: 0%; border-radius: 6px; transition: width 0.25s linear; }
+.row.top .name { font-weight: 800; }
+.row.top .pct { color: var(--ink); font-weight: 600; }
+
+.teach {
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.teach.learned { border-color: currentColor; }
+.teach-hint { font-size: 0.88rem; color: var(--muted); margin: 4px 0 8px; max-width: 60ch; }
+.teach-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.teach-actions span { font-size: 0.85rem; color: var(--muted); }
+.countdown {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.35); color: #fff; text-align: center; padding: 20px;
+  pointer-events: none;
+}
+.countdown[hidden] { display: none; }
+.countdown .n { font-size: 5rem; font-weight: 800; line-height: 1; }
+.countdown .msg { font-size: 1.15rem; font-weight: 600; margin-top: 8px; max-width: 18ch; }
+
+#recBtn.recording { background: var(--angry); border-color: var(--angry); color: #fff; }
+#recBtn.recording::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #fff; margin-right: 8px; vertical-align: 1px; }
+.results {
+  margin: 14px 0 6px;
+  padding: 16px 14px;
+  border-radius: 22px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 12px);
+}
+.results[hidden] { display: none; }
+.res-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.results h2 { margin: 0; font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; }
+.results h3 { margin: 18px 0 8px; font-size: 1rem; font-weight: 600; }
+.res-summary { margin: 8px 0 0; max-width: 60ch; }
+.res-chart { width: 100%; overflow-x: auto; }
+.res-chart svg { display: block; }
+.res-chart .lab { font: 600 13px "Bricolage Grotesque", system-ui, sans-serif; fill: var(--ink); }
+.res-chart .tick { font: 11px "Bricolage Grotesque", system-ui, sans-serif; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.res-chart .base { stroke: var(--muted); stroke-width: 1; }
+.res-chart .grid { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 3; }
+.res-chart .frame { stroke: var(--line); stroke-width: 1; }
+.res-note { margin: 6px 0 0; font-size: 0.82rem; color: var(--muted); }
+.srow { display: grid; grid-template-columns: 88px 1fr 40px; align-items: center; gap: 10px; padding: 4px 0; }
+.srow .name { font-size: 0.95rem; }
+.srow .pct { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.9rem; }
+.res-actions { margin-top: 14px; display: flex; gap: 8px; }
+
+/* Timeline */
+.timeline-wrap { margin-top: 18px; }
+.timeline-head { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; }
+canvas.timeline {
+  display: block;
+  width: 100%;
+  height: 44px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.note {
+  margin-top: 22px;
+  font-size: 0.88rem;
+  color: var(--muted);
+  max-width: 60ch;
+}
+.note p { margin: 0 0 8px; }
+.error {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--angry);
+  color: var(--ink);
+  background: var(--surface);
+  font-size: 0.95rem;
+}
+.error[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .fill, .verdict .word { transition: none; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Face Reader</h1>
+    <div class="status" id="status" aria-live="polite">Ready</div>
+  </header>
+
+  <div class="stage" id="stage">
+    <video id="video" playsinline muted class="mirrored"></video>
+    <canvas class="overlay mirrored" id="overlay"></canvas>
+    <div class="intro" id="intro">
+      <div class="ring" aria-hidden="true"></div>
+      <p class="lead">See how your facial expression changes on camera.</p>
+      <p>Your video stays on this device. The first start downloads the face models and browser runtime.</p>
+      <button class="primary" id="startBtn">Start camera</button>
+    </div>
+    <div class="countdown" id="countdown" hidden><div class="n" id="cdN">3</div><div class="msg" id="cdMsg"></div></div>
+    <div class="verdict" id="verdict" hidden>
+      <p class="word" id="word">—</p>
+      <div class="sub" id="sub">Looking for a face…</div>
+    </div>
+  </div>
+
+  <div class="error" id="error" role="alert" hidden></div>
+
+  <div class="controls" id="controls" hidden>
+    <button id="recBtn" aria-pressed="false">Start recording</button>
+    <button id="pauseBtn">Pause</button>
+    <button id="flipBtn">Switch camera</button>
+    <button id="smoothBtn" aria-pressed="true">Smoothing on</button>
+  </div>
+
+  <section class="results" id="results" hidden aria-labelledby="resTitle">
+    <div class="res-head"><h2 id="resTitle">Recording</h2><button id="closeResBtn" aria-label="Close recording results">Close</button></div>
+    <p class="res-summary" id="resSummary"></p>
+    <h3>Each expression over time</h3>
+    <div class="res-chart" id="resChart"></div>
+    <p class="res-note" id="resNote"></p>
+    <h3>Share of time as the top expression</h3>
+    <div id="resShare"></div>
+    <div class="res-actions"><button id="csvBtn">Download CSV</button></div>
+  </section>
+
+  <section class="readout" id="readout" aria-label="Expression scores"></section>
+  <p class="teach-hint">To personalize scores, tap <strong>Teach</strong> next to an expression, make that face, and hold it for 3 seconds. Start with Neutral, then teach the expressions the app tends to mix up.</p>
+
+  <div class="teach-actions"><button id="resetBtn">Forget taught faces</button><span id="learnedInfo">No faces taught yet</span></div>
+
+  <div class="timeline-wrap">
+    <div class="timeline-head"><span>Last 60 seconds</span><span id="tlLegend">Top expression over time</span></div>
+    <canvas class="timeline" id="timeline" aria-label="Top expression over the last 60 seconds"></canvas>
+  </div>
+
+  <div class="note">
+    <p>Scores show how closely your face on camera resembles eight expression categories. What you feel may be different from how your face looks.</p>
+    <p>Teaching examples are stored in this browser on this device.</p>
+    <p>Works best with even front lighting, your face filling about a third of the frame, and no strong backlight.</p>
+  </div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  const MP_VER = "0.10.35";
+  const MP_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@" + MP_VER;
+  const MP_MODEL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+  const ORT_BASE = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.1/dist/";
+  const EXPRESSION_MODEL = "./models/enet_b0_8_best_afew.onnx";
+  // HSEmotion's output order differs from the order of the readout and CSV.
+  const MODEL_KEYS = ["angry", "contempt", "disgusted", "fearful", "happy", "neutral", "sad", "surprised"];
+  const STORE_KEY = "facereader.taught.v3";
+
+  const EMO = [
+    { key: "happy",     label: "Happy" },
+    { key: "neutral",   label: "Neutral" },
+    { key: "sad",       label: "Sad" },
+    { key: "angry",     label: "Angry" },
+    { key: "surprised", label: "Surprised" },
+    { key: "fearful",   label: "Fearful" },
+    { key: "disgusted", label: "Disgusted" },
+    { key: "contempt",  label: "Contempt" }
+  ];
+  const KEYS = EMO.map(e => e.key);
+  const labelOf = (k) => EMO.find(e => e.key === k).label;
+
+  const $ = (id) => document.getElementById(id);
+  const video = $("video"), overlay = $("overlay"), tl = $("timeline");
+  const statusEl = $("status"), errorEl = $("error");
+  const wordEl = $("word"), subEl = $("sub"), verdictEl = $("verdict");
+
+  let stream = null, running = false, paused = false, facing = "user";
+  let switchingCamera = false, frameVersion = 0;
+  let smoothing = true, smoothed = null;
+  let landmarker = null, ort = null, expressionModel = null;
+  const history = [];
+  const HISTORY_MS = 60000;
+
+  // Personal teaching state: { key: { n, mean: number[] } }, plus pooled variance
+  let taught = loadTaught();
+  let capture = null; // { key, samples: [], until }
+
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function colorOf(key) { return cssVar("--" + key); }
+  function setStatus(t) { statusEl.textContent = t; }
+  function showError(msg) { errorEl.textContent = msg; errorEl.hidden = false; }
+  function clearError() { errorEl.hidden = true; errorEl.textContent = ""; }
+
+  // ---------- Readout rows with Teach buttons ----------
+  const readout = $("readout");
+  const rows = {};
+  EMO.forEach(e => {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = '<span class="name"></span><div class="track"><div class="fill"></div></div><span class="pct">0%</span><button class="teach" type="button">Teach</button>';
+    row.querySelector(".name").textContent = e.label;
+    const btn = row.querySelector(".teach");
+    btn.setAttribute("aria-label", "Teach my " + e.label.toLowerCase() + " face");
+    btn.addEventListener("click", () => startTeach(e.key));
+    readout.appendChild(row);
+    rows[e.key] = { row, fill: row.querySelector(".fill"), pct: row.querySelector(".pct"), btn };
+  });
+  function paintColors() {
+    EMO.forEach(e => {
+      rows[e.key].fill.style.background = colorOf(e.key);
+      rows[e.key].btn.style.color = taught[e.key] ? colorOf(e.key) : "";
+    });
+  }
+  function refreshTaughtUI() {
+    EMO.forEach(e => {
+      const on = !!taught[e.key];
+      rows[e.key].btn.textContent = on ? "Retake" : "Teach";
+      rows[e.key].btn.classList.toggle("learned", on);
+    });
+    const list = KEYS.filter(k => taught[k]).map(labelOf);
+    $("learnedInfo").textContent = list.length ? "Taught: " + list.join(", ") : "No faces taught yet";
+    paintColors();
+  }
+  refreshTaughtUI();
+  if (window.matchMedia) {
+    try { window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", paintColors); } catch (_) {}
+  }
+
+  $("resetBtn").addEventListener("click", () => {
+    taught = {};
+    try { localStorage.removeItem(STORE_KEY); } catch (_) {}
+    refreshTaughtUI();
+  });
+
+  // ---------- Storage ----------
+  function loadTaught() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return {};
+      const obj = JSON.parse(raw);
+      return (obj && typeof obj === "object") ? obj : {};
+    } catch (_) { return {}; }
+  }
+  function saveTaught() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(taught)); } catch (_) {}
+  }
+
+  // ---------- Model loading ----------
+  async function loadModels() {
+    if (!expressionModel) {
+      setStatus("Loading expression model…");
+      try {
+        ort = await import(ORT_BASE + "ort.wasm.min.mjs");
+        ort.env.wasm.numThreads = 1;
+        ort.env.wasm.wasmPaths = ORT_BASE;
+        expressionModel = await ort.InferenceSession.create(EXPRESSION_MODEL, { executionProviders: ["wasm"] });
+      } catch (err) {
+        throw new Error("The expression model couldn’t load. Check your connection and try again.", { cause: err });
+      }
+    }
+    if (!landmarker) {
+      setStatus("Loading face tracker…");
+      try {
+        const vision = await import(MP_BASE + "/vision_bundle.mjs");
+        const files = await vision.FilesetResolver.forVisionTasks(MP_BASE + "/wasm");
+        const opts = (delegate) => ({
+          baseOptions: { modelAssetPath: MP_MODEL, delegate },
+          outputFaceBlendshapes: true,
+          runningMode: "VIDEO",
+          numFaces: 1
+        });
+        try { landmarker = await vision.FaceLandmarker.createFromOptions(files, opts("GPU")); }
+        catch (err) { landmarker = await vision.FaceLandmarker.createFromOptions(files, opts("CPU")); }
+      } catch (err) {
+        throw new Error("The face tracker couldn’t load. Check your connection and try again.", { cause: err });
+      }
+    }
+  }
+
+  // ---------- Camera ----------
+  const startBtn = $("startBtn"), pauseBtn = $("pauseBtn"), flipBtn = $("flipBtn");
+
+  function stopCamera() {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = null;
+    video.srcObject = null;
+    lastVideoTime = -1;
+  }
+
+  async function startCamera(direction) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw Object.assign(new Error("no-media"), { name: "NoMedia" });
+    }
+    stopCamera();
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: direction, width: { ideal: 640 }, height: { ideal: 480 } }
+    });
+    video.srcObject = stream;
+    if (!paused) await video.play();
+    const mirror = direction === "user";
+    video.classList.toggle("mirrored", mirror);
+    overlay.classList.toggle("mirrored", mirror);
+  }
+
+  function showCameraControls(active) {
+    running = active;
+    $("intro").hidden = active;
+    verdictEl.hidden = !active;
+    $("controls").hidden = !active;
+    startBtn.disabled = active;
+  }
+
+  function cameraErrorMessage(err) {
+    const n = err && err.name;
+    if (n === "NotAllowedError" || n === "SecurityError") return "Camera access was blocked. Allow camera access for this page in your browser settings, then tap Start camera again.";
+    if (n === "NotFoundError" || n === "OverconstrainedError") return "No usable camera was found on this device.";
+    if (n === "NotReadableError") return "The camera is in use by another app. Close it and try again.";
+    if (n === "NoMedia") return "This browser doesn’t expose the camera to web pages. Try Chrome on Android or Safari on iPhone.";
+    return (err && err.message) ? err.message : "Something stopped the camera from starting.";
+  }
+
+  startBtn.addEventListener("click", async () => {
+    clearError();
+    startBtn.disabled = true;
+    try {
+      setStatus("Starting camera…");
+      await startCamera(facing);
+      await loadModels();
+      showCameraControls(true);
+      setStatus("Live");
+      scheduleFrame();
+    } catch (err) {
+      console.error(err);
+      stopCamera();
+      showCameraControls(false);
+      setStatus("Stopped");
+      showError(cameraErrorMessage(err));
+    }
+  });
+
+  pauseBtn.addEventListener("click", () => {
+    paused = !paused;
+    frameVersion++;
+    pauseBtn.textContent = paused ? "Resume" : "Pause";
+    setStatus(paused ? "Paused" : "Live");
+    if (paused) {
+      video.pause();
+    } else {
+      clearError();
+      const version = frameVersion;
+      video.play().catch(err => {
+        if (version !== frameVersion) return;
+        pauseBtn.click();
+        showError(cameraErrorMessage(err));
+      });
+      scheduleFrame();
+    }
+  });
+
+  flipBtn.addEventListener("click", async () => {
+    const direction = facing === "user" ? "environment" : "user";
+    clearError();
+    switchingCamera = true;
+    frameVersion++;
+    flipBtn.disabled = pauseBtn.disabled = true;
+    smoothed = null;
+    try {
+      await startCamera(direction);
+      facing = direction;
+    } catch (err) {
+      stopCamera();
+      if (recording) stopRecording();
+      paused = false;
+      pauseBtn.textContent = "Pause";
+      showCameraControls(false);
+      setStatus("Stopped");
+      showError(cameraErrorMessage(err));
+    } finally {
+      switchingCamera = false;
+      flipBtn.disabled = pauseBtn.disabled = false;
+      if (document.hidden && running && !paused) pauseBtn.click();
+      scheduleFrame();
+    }
+  });
+
+  $("smoothBtn").addEventListener("click", () => {
+    smoothing = !smoothing;
+    $("smoothBtn").textContent = smoothing ? "Smoothing on" : "Smoothing off";
+    $("smoothBtn").setAttribute("aria-pressed", String(smoothing));
+    smoothed = null;
+  });
+
+  // ---------- Teaching ----------
+  function startTeach(key) {
+    if (!running || paused) {
+      showError("Start the camera first, then tap Teach.");
+      return;
+    }
+    clearError();
+    const cd = $("countdown"), n = $("cdN"), msg = $("cdMsg");
+    cd.hidden = false;
+    let count = 3;
+    n.textContent = count;
+    msg.textContent = "Get ready to make your " + labelOf(key).toLowerCase() + " face";
+    const tick = setInterval(() => {
+      count -= 1;
+      if (count > 0) { n.textContent = count; return; }
+      clearInterval(tick);
+      n.textContent = "Hold";
+      msg.textContent = "Keep your " + labelOf(key).toLowerCase() + " face for 3 seconds";
+      capture = { key, samples: [], start: performance.now() };
+    }, 1000);
+  }
+
+  function finishTeach() {
+    const { key, samples } = capture;
+    capture = null;
+    $("countdown").hidden = true;
+    if (samples.length < 4) {
+      showError("Couldn’t see your face clearly enough. Keep your whole face in view and try again.");
+      return;
+    }
+    const dim = samples[0].length;
+    const mean = new Array(dim).fill(0);
+    samples.forEach(s => { for (let i = 0; i < dim; i++) mean[i] += s[i] / samples.length; });
+    let spread = 0;
+    samples.forEach(s => { let d = 0; for (let i = 0; i < dim; i++) d += (s[i] - mean[i]) ** 2; spread += d / samples.length; });
+    taught[key] = { n: samples.length, mean, spread };
+    saveTaught();
+    refreshTaughtUI();
+  }
+
+  // Hold for at least 3 s and 12 frames; give slow phones up to 8 s
+  function checkCaptureDone() {
+    if (!capture || !capture.start) return;
+    const el = performance.now() - capture.start;
+    if ((el >= 3000 && capture.samples.length >= 12) || el >= 8000) finishTeach();
+  }
+
+  // Feature vector: 52 blendshape scores + square-rooted model probabilities
+  function featureVector(blend, probs) {
+    const f = blend.slice();
+    KEYS.forEach(k => f.push(Math.sqrt(probs[k] || 0)));
+    return f;
+  }
+
+  // Nearest-centroid personal model, blended into the base probabilities
+  function applyPersonal(probs, feat) {
+    const keys = KEYS.filter(k => taught[k] && taught[k].mean && taught[k].mean.length === feat.length);
+    if (keys.length < 2) return probs;
+    const avgSpread = keys.reduce((a, k) => a + (taught[k].spread || 0), 0) / keys.length;
+    const tau = Math.max(avgSpread * 2, 0.02);
+    const logits = keys.map(k => {
+      const m = taught[k].mean;
+      let d = 0; for (let i = 0; i < feat.length; i++) d += (feat[i] - m[i]) ** 2;
+      return -d / tau;
+    });
+    const mx = Math.max(...logits);
+    const ex = logits.map(l => Math.exp(l - mx));
+    const sum = ex.reduce((a, b) => a + b, 0);
+    const personal = {}; keys.forEach((k, i) => personal[k] = ex[i] / sum);
+
+    // Taught expressions share 80% of the probability mass by your examples;
+    // untrained ones keep their share of the remaining 20% from the base model.
+    const w = 0.8;
+    const out = {};
+    const untrained = KEYS.filter(k => !keys.includes(k));
+    keys.forEach(k => out[k] = w * personal[k] + (1 - w) * probs[k]);
+    untrained.forEach(k => out[k] = (1 - w) * probs[k]);
+    const s = KEYS.reduce((a, k) => a + out[k], 0) || 1;
+    KEYS.forEach(k => out[k] /= s);
+    return out;
+  }
+
+  // ---------- Main loop ----------
+  const FACE_SIZE = 224;
+  const MIN_FRAME_MS = 100;
+  const crop = document.createElement("canvas");
+  crop.width = crop.height = FACE_SIZE;
+  const cropCtx = crop.getContext("2d", { willReadFrequently: true });
+  const planeSize = FACE_SIZE * FACE_SIZE;
+  const tensorData = new Float32Array(3 * planeSize);
+  // The checkpoint expects RGB planes with ImageNet normalization.
+  const channelMean = [0.485, 0.456, 0.406];
+  const channelStd = [0.229, 0.224, 0.225];
+  let framePending = false, lastFrameAt = -Infinity, lastVideoTime = -1;
+  let showingFace = null;
+
+  async function scoreFace() {
+    const rgba = cropCtx.getImageData(0, 0, FACE_SIZE, FACE_SIZE).data;
+    for (let channel = 0; channel < 3; channel++) {
+      const offset = channel * planeSize;
+      const mean = channelMean[channel], std = channelStd[channel];
+      for (let i = 0; i < planeSize; i++) {
+        tensorData[offset + i] = (rgba[i * 4 + channel] / 255 - mean) / std;
+      }
+    }
+    const input = new ort.Tensor("float32", tensorData, [1, 3, FACE_SIZE, FACE_SIZE]);
+    const outputs = await expressionModel.run({ input });
+    const logits = outputs[expressionModel.outputNames[0]].data;
+    const max = Math.max(...logits);
+    const weights = Array.from(logits, value => Math.exp(value - max));
+    const total = weights.reduce((sum, value) => sum + value, 0);
+    return Object.fromEntries(MODEL_KEYS.map((key, i) => [key, weights[i] / total]));
+  }
+
+  function canProcessFrame() {
+    return running && !paused && !switchingCamera;
+  }
+
+  function scheduleFrame() {
+    if (framePending || !canProcessFrame()) return;
+    // Keep this flag set until inference finishes, including across pause and camera changes.
+    framePending = true;
+    requestAnimationFrame(loop);
+  }
+
+  async function loop(ts) {
+    const version = frameVersion;
+    try {
+      if (canProcessFrame() && video.readyState >= 2 &&
+          ts - lastFrameAt >= MIN_FRAME_MS && video.currentTime !== lastVideoTime) {
+        lastFrameAt = ts;
+        lastVideoTime = video.currentTime;
+        await step(ts, version);
+      }
+    } catch (err) {
+      console.error(err);
+      if (version === frameVersion) {
+        pauseBtn.click();
+        showError("Expression tracking stopped. Tap Resume to try again.");
+      }
+    } finally {
+      framePending = false;
+      scheduleFrame();
+    }
+  }
+
+  async function step(ts, version) {
+    const res = landmarker.detectForVideo(video, ts);
+    const w = video.videoWidth, h = video.videoHeight;
+    if (overlay.width !== w || overlay.height !== h) { overlay.width = w; overlay.height = h; }
+    const ctx = overlay.getContext("2d");
+
+    if (!res.faceLandmarks || !res.faceLandmarks.length) {
+      ctx.clearRect(0, 0, w, h);
+      renderNoFace();
+      return;
+    }
+
+    const lm = res.faceLandmarks[0];
+    let minX = 1, minY = 1, maxX = 0, maxY = 0;
+    for (const p of lm) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
+    const bx = minX * w, by = minY * h, bw = (maxX - minX) * w, bh = (maxY - minY) * h;
+
+    // Square crop around the face for the expression model
+    const side = Math.max(bw, bh) * 1.08;
+    const cx = bx + bw / 2, cy = by + bh / 2;
+    cropCtx.fillStyle = "#000";
+    cropCtx.fillRect(0, 0, crop.width, crop.height);
+    cropCtx.drawImage(video, cx - side / 2, cy - side / 2, side, side, 0, 0, crop.width, crop.height);
+    const base = await scoreFace();
+    if (version !== frameVersion) return;
+
+    const cats = (res.faceBlendshapes && res.faceBlendshapes[0]) ? res.faceBlendshapes[0].categories : [];
+    const blend = cats.map(c => c.score);
+    const feat = blend.length ? featureVector(blend, base) : null;
+
+    if (capture && feat) capture.samples.push(feat);
+    checkCaptureDone();
+
+    const probs = feat ? applyPersonal(base, feat) : base;
+    ctx.clearRect(0, 0, w, h);
+    render(probs, { x: bx, y: by, width: bw, height: bh });
+  }
+
+  function renderNoFace() {
+    if (showingFace !== false) {
+      showingFace = false;
+      smoothed = null;
+      wordEl.textContent = "No face";
+      wordEl.style.color = "#fff";
+      subEl.textContent = "Bring your face into view, facing the camera.";
+      KEYS.forEach(k => {
+        rows[k].fill.style.width = "0%";
+        rows[k].pct.textContent = "—";
+        rows[k].row.classList.toggle("top", false);
+      });
+    }
+    checkCaptureDone();
+    recordFrame(null);
+    pushHistory(null, 0);
+    drawTimeline();
+  }
+
+  function render(raw, b) {
+    showingFace = true;
+    recordFrame(raw);
+    if (!smoothed || !smoothing) {
+      smoothed = {}; KEYS.forEach(k => smoothed[k] = raw[k] || 0);
+    } else {
+      const a = 0.35;
+      KEYS.forEach(k => smoothed[k] = smoothed[k] * (1 - a) + (raw[k] || 0) * a);
+    }
+
+    const topKey = topOf(smoothed), topVal = smoothed[topKey];
+    const col = colorOf(topKey);
+
+    const ctx = overlay.getContext("2d");
+    ctx.lineWidth = Math.max(3, overlay.width / 160);
+    ctx.strokeStyle = col;
+    ctx.beginPath();
+    ctx.ellipse(b.x + b.width / 2, b.y + b.height / 2, b.width * 0.62, b.height * 0.62, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    wordEl.textContent = labelOf(topKey);
+    wordEl.style.color = col;
+    subEl.textContent = Math.round(topVal * 100) + "% expression score";
+
+    KEYS.forEach(k => {
+      const v = smoothed[k];
+      rows[k].fill.style.width = (v * 100).toFixed(1) + "%";
+      rows[k].pct.textContent = Math.round(v * 100) + "%";
+      rows[k].row.classList.toggle("top", k === topKey);
+    });
+
+    pushHistory(topKey, topVal);
+    drawTimeline();
+  }
+
+  let lastPush = 0;
+  function pushHistory(key, conf) {
+    const now = Date.now();
+    if (now - lastPush < 200) return;
+    lastPush = now;
+    history.push({ t: now, key, conf });
+    while (history.length && now - history[0].t > HISTORY_MS) history.shift();
+  }
+
+  function drawTimeline() {
+    const dpr = window.devicePixelRatio || 1;
+    const cw = tl.clientWidth, ch = tl.clientHeight;
+    if (tl.width !== Math.round(cw * dpr)) { tl.width = Math.round(cw * dpr); tl.height = Math.round(ch * dpr); }
+    const ctx = tl.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cw, ch);
+    const now = Date.now();
+    for (let i = 0; i < history.length; i++) {
+      const hh = history[i];
+      const next = history[i + 1] ? history[i + 1].t : now;
+      const x0 = cw - ((now - hh.t) / HISTORY_MS) * cw;
+      const x1 = cw - ((now - next) / HISTORY_MS) * cw;
+      if (!hh.key) continue;
+      ctx.fillStyle = colorOf(hh.key);
+      const barH = Math.max(4, hh.conf * (ch - 8));
+      ctx.fillRect(x0, ch - 4 - barH, Math.max(1, x1 - x0 + 0.5), barH);
+    }
+  }
+
+  // ---------- Recording ----------
+  // Frames are averaged into 0.2-second windows. A window with no face is stored as null.
+  const WINDOW_MS = 200;
+  let recording = null;   // { startWall, startPerf, samples: [{t, p|null}], acc, accN, accEmpty, winStart, timer }
+  let lastRecording = null;
+
+  const recBtn = $("recBtn");
+  recBtn.addEventListener("click", () => { recording ? stopRecording() : startRecording(); });
+
+  function startRecording() {
+    if (!running) return;
+    const now = performance.now();
+    recording = {
+      startWall: new Date(),
+      startPerf: now,
+      samples: [],
+      acc: zeroProbs(), accN: 0, accEmpty: 0, winStart: now,
+      timer: setInterval(updateRecLabel, 500)
+    };
+    recBtn.classList.add("recording");
+    recBtn.setAttribute("aria-pressed", "true");
+    $("results").hidden = true;
+    updateRecLabel();
+  }
+
+  function stopRecording() {
+    if (!recording) return;
+    flushWindow(performance.now());
+    clearInterval(recording.timer);
+    lastRecording = recording;
+    recording = null;
+    recBtn.classList.remove("recording");
+    recBtn.setAttribute("aria-pressed", "false");
+    recBtn.textContent = "Start recording";
+    setStatus(paused ? "Paused" : "Live");
+    showResults(lastRecording);
+  }
+
+  function updateRecLabel() {
+    if (!recording) return;
+    const secs = (performance.now() - recording.startPerf) / 1000;
+    recBtn.textContent = "Stop recording " + fmtTime(secs);
+    setStatus(paused ? "Paused, recording" : "Recording");
+  }
+
+  function zeroProbs() { const o = {}; KEYS.forEach(k => o[k] = 0); return o; }
+
+  function recordFrame(probs) {
+    if (!recording || paused) return;
+    const now = performance.now();
+    if (now - recording.winStart >= WINDOW_MS) flushWindow(now);
+    if (probs) { KEYS.forEach(k => recording.acc[k] += probs[k] || 0); recording.accN++; }
+    else recording.accEmpty++;
+  }
+
+  function flushWindow(now) {
+    const r = recording;
+    if (r.accN + r.accEmpty > 0) {
+      const t = (r.winStart - r.startPerf) / 1000;
+      if (r.accN > 0 && r.accN >= r.accEmpty) {
+        const p = {}; KEYS.forEach(k => p[k] = r.acc[k] / r.accN);
+        r.samples.push({ t, p });
+      } else {
+        r.samples.push({ t, p: null });
+      }
+    }
+    r.acc = zeroProbs(); r.accN = 0; r.accEmpty = 0; r.winStart = now;
+  }
+
+  // Pausing during a recording leaves a gap in time rather than pretending the clock stopped.
+  function topOf(p) {
+    let best = KEYS[0];
+    KEYS.forEach(k => { if (p[k] > p[best]) best = k; });
+    return best;
+  }
+
+  function fmtTime(secs) {
+    secs = Math.max(0, Math.round(secs));
+    const m = Math.floor(secs / 60), s = secs % 60;
+    return m + ":" + String(s).padStart(2, "0");
+  }
+  function fmtDuration(secs) {
+    secs = Math.round(secs);
+    if (secs < 60) return secs + " s";
+    const m = Math.floor(secs / 60), s = secs % 60;
+    return m + " min " + s + " s";
+  }
+
+  // Average samples into at most ~maxBins bins so the chart stays readable for long recordings
+  function binSamples(samples, duration, maxBins) {
+    // Bins are never narrower than the phone's actual sampling interval, so slow phones don't produce false gaps
+    const dts = [];
+    for (let i = 1; i < samples.length; i++) dts.push(samples[i].t - samples[i - 1].t);
+    dts.sort((a, b) => a - b);
+    const medDt = dts.length ? dts[Math.floor(dts.length / 2)] : WINDOW_MS / 1000;
+    const binSec = Math.max(WINDOW_MS / 1000, duration / maxBins, medDt * 1.25);
+    const n = Math.max(1, Math.ceil(duration / binSec));
+    const bins = [];
+    for (let i = 0; i < n; i++) bins.push({ t0: i * binSec, t1: (i + 1) * binSec, sum: zeroProbs(), n: 0, empty: 0 });
+    samples.forEach(s => {
+      const i = Math.min(n - 1, Math.floor(s.t / binSec));
+      if (s.p) { KEYS.forEach(k => bins[i].sum[k] += s.p[k]); bins[i].n++; } else bins[i].empty++;
+    });
+    bins.forEach(b => {
+      if (b.n > 0 && b.n >= b.empty) { b.p = {}; KEYS.forEach(k => b.p[k] = b.sum[k] / b.n); }
+      else b.p = null;
+      b.noData = (b.n === 0 && b.empty === 0); // nothing sampled in this bin
+    });
+    // Bridge short sampling holes (under 2 s) with the neighbouring value; longer holes stay as gaps (pause)
+    let i = 0;
+    while (i < n) {
+      if (!bins[i].noData) { i++; continue; }
+      let j = i; while (j < n && bins[j].noData) j++;
+      const prev = i > 0 ? bins[i - 1] : null, next = j < n ? bins[j] : null;
+      if ((j - i) * binSec < 2 && prev && prev.p && next && next.p) {
+        for (let k = i; k < j; k++) bins[k].p = prev.p;
+      }
+      i = j;
+    }
+    return { bins, binSec };
+  }
+
+  function showResults(rec, scroll) {
+    if (scroll === undefined) scroll = true;
+    const res = $("results");
+    const samples = rec.samples;
+    const withFace = samples.filter(s => s.p);
+    const duration = samples.length ? samples[samples.length - 1].t + WINDOW_MS / 1000 : 0;
+    res.hidden = false;
+
+    if (withFace.length < 3) {
+      $("resTitle").textContent = "Recording too short";
+      $("resSummary").textContent = "Fewer than a second of face data was recorded. Record for longer with your face in view.";
+      $("resChart").innerHTML = ""; $("resShare").innerHTML = ""; $("resNote").textContent = "";
+      $("csvBtn").disabled = true;
+      if (scroll) res.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    $("csvBtn").disabled = false;
+
+    // Share of time as top expression (among windows with a face)
+    const counts = zeroProbs();
+    withFace.forEach(s => counts[topOf(s.p)]++);
+    const noFace = samples.length - withFace.length;
+    const order = KEYS.slice().sort((a, b) => counts[b] - counts[a]);
+    const top = order[0];
+    const topShare = counts[top] / withFace.length;
+
+    $("resTitle").textContent = "Recording, " + fmtDuration(duration);
+    let summary = labelOf(top) + " was the top expression " + Math.round(topShare * 100) + "% of the time your face was visible";
+    const second = order[1];
+    if (counts[second] > 0) summary += ", followed by " + labelOf(second).toLowerCase() + " (" + Math.round(counts[second] / withFace.length * 100) + "%)";
+    summary += ".";
+    if (noFace > 0) summary += " No face was detected for " + Math.round(noFace / samples.length * 100) + "% of the recording.";
+    $("resSummary").textContent = summary;
+
+    // Share bars
+    const share = $("resShare");
+    share.innerHTML = "";
+    order.forEach(k => {
+      const pct = counts[k] / withFace.length * 100;
+      const row = document.createElement("div");
+      row.className = "srow";
+      row.innerHTML = '<span class="name"></span><div class="track"><div class="fill"></div></div><span class="pct"></span>';
+      row.querySelector(".name").textContent = labelOf(k);
+      row.querySelector(".fill").style.width = pct.toFixed(1) + "%";
+      row.querySelector(".fill").style.background = colorOf(k);
+      row.querySelector(".pct").textContent = Math.round(pct) + "%";
+      share.appendChild(row);
+    });
+
+    drawResultChart(rec, duration);
+    if (scroll) res.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function drawResultChart(rec, duration) {
+    const host = $("resChart");
+    const W = Math.max(280, host.clientWidth || 340);
+    const { bins, binSec } = binSamples(rec.samples, duration, Math.min(240, Math.floor(W / 1.5)));
+    const left = 84, right = 8, panelH = 40, gap = 10, top = 4;
+    const plotW = W - left - right;
+    const x = (t) => left + (t / duration) * plotW;
+
+    let svg = "";
+    // Top-expression band
+    const bandH = 16;
+    svg += '<text x="0" y="' + (top + 12) + '" class="lab">Top</text>';
+    bins.forEach(b => {
+      const x0 = x(b.t0), x1 = x(Math.min(b.t1, duration));
+      const fill = b.p ? colorOf(topOf(b.p)) : "none";
+      if (b.p) svg += '<rect x="' + x0.toFixed(1) + '" y="' + top + '" width="' + Math.max(0.8, x1 - x0 + 0.3).toFixed(1) + '" height="' + bandH + '" fill="' + fill + '"/>';
+    });
+    svg += '<rect x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + bandH + '" fill="none" class="frame"/>';
+
+    // One small panel per expression, shared 0–100% scale
+    let y0 = top + bandH + 16;
+    EMO.forEach((e, idx) => {
+      const yb = y0 + panelH; // baseline (0%)
+      const yv = (v) => yb - v * panelH;
+      svg += '<text x="0" y="' + (y0 + panelH / 2 + 5) + '" class="lab">' + e.label + '</text>';
+      svg += '<line x1="' + left + '" x2="' + (left + plotW) + '" y1="' + yb + '" y2="' + yb + '" class="base"/>';
+      svg += '<line x1="' + left + '" x2="' + (left + plotW) + '" y1="' + y0 + '" y2="' + y0 + '" class="grid"/>';
+      if (idx === 0) {
+        svg += '<text x="' + (left - 4) + '" y="' + (y0 + 4) + '" class="tick" text-anchor="end">100%</text>';
+        svg += '<text x="' + (left - 4) + '" y="' + (yb + 1) + '" class="tick" text-anchor="end">0</text>';
+      }
+      // Build segments split at gaps (no face / paused)
+      const col = colorOf(e.key);
+      let seg = [];
+      const flush = () => {
+        if (!seg.length) return;
+        if (seg.length === 1) seg.push([seg[0][0] + 1, seg[0][1]]);
+        const line = seg.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+        const area = line + " L" + seg[seg.length - 1][0].toFixed(1) + " " + yb + " L" + seg[0][0].toFixed(1) + " " + yb + " Z";
+        svg += '<path d="' + area + '" fill="' + col + '" fill-opacity="0.18"/>';
+        svg += '<path d="' + line + '" fill="none" stroke="' + col + '" stroke-width="1.8" stroke-linejoin="round"/>';
+        seg = [];
+      };
+      bins.forEach(b => {
+        if (!b.p) { flush(); return; }
+        seg.push([x((b.t0 + Math.min(b.t1, duration)) / 2), yv(b.p[e.key])]);
+      });
+      flush();
+      y0 += panelH + gap;
+    });
+
+    // Time axis
+    const axisY = y0 + 2;
+    const step = niceStep(duration);
+    for (let t = 0; t <= duration + 0.001; t += step) {
+      const xx = x(t);
+      svg += '<line x1="' + xx + '" x2="' + xx + '" y1="' + (axisY - 4) + '" y2="' + axisY + '" class="base"/>';
+      svg += '<text x="' + xx + '" y="' + (axisY + 13) + '" class="tick" text-anchor="' + (t === 0 ? "start" : "middle") + '">' + fmtTime(t) + '</text>';
+    }
+    const H = axisY + 20;
+    const binNote = "Each point averages " + (binSec < 10 ? binSec.toFixed(1) : Math.round(binSec)) + " s.";
+    host.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '" role="img" aria-label="Score of each expression over the recording, on a shared 0 to 100 percent scale">' + svg + '</svg>';
+    $("resNote").textContent = "Scores on a shared 0–100% scale. " + binNote + " Gaps mean no face was detected or the app was paused.";
+  }
+
+  function niceStep(d) {
+    const target = d / 4;
+    const steps = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600];
+    for (const s of steps) if (s >= target) return s;
+    return 3600;
+  }
+
+  $("csvBtn").addEventListener("click", () => {
+    if (!lastRecording) return;
+    const lines = ["seconds,face_detected," + KEYS.join(",") + ",top"];
+    lastRecording.samples.forEach(s => {
+      if (s.p) lines.push(s.t.toFixed(1) + ",1," + KEYS.map(k => s.p[k].toFixed(4)).join(",") + "," + topOf(s.p));
+      else lines.push(s.t.toFixed(1) + ",0," + KEYS.map(() => "").join(",") + ",");
+    });
+    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    const d = lastRecording.startWall;
+    const stamp = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") + "_" + String(d.getHours()).padStart(2, "0") + String(d.getMinutes()).padStart(2, "0");
+    a.href = URL.createObjectURL(blob);
+    a.download = "face-reader_" + stamp + ".csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  });
+
+  $("closeResBtn").addEventListener("click", () => { $("results").hidden = true; });
+
+  let resizeT = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeT);
+    resizeT = setTimeout(() => { if (lastRecording && !$("results").hidden) showResults(lastRecording, false); }, 200);
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && running && !paused) pauseBtn.click();
+  });
+})();
+</script>
+
+</body>
+</html>
