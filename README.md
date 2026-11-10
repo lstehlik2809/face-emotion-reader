@@ -6,13 +6,13 @@ Face Reader uses your camera to estimate which of eight facial expression patter
 
 ## Camera and data
 
-Allow camera access after selecting **Start camera**. Models and browser libraries download when you start the camera for the first time. Video frames are processed in your browser. The recording contains scores and timestamps, and **Teach** stores examples as numeric features in your browser. Use **Forget taught faces** to clear those examples.
+Allow camera access after selecting **Start camera**. Models and browser libraries download when you start the camera for the first time. Video frames are processed in your browser. Recordings contain scores and timestamps.
 
-## Calibrate for your camera angle
+## Teach Face Reader
 
-A low or tilted camera can make a relaxed face look like a frown to the classifier. To give Face Reader a reference for your setup, start the camera and open **Personalize scores** → **Calibrate neutral**. Sit in your usual position, look where you normally look on the screen, and relax your brow, eyes, and mouth. After the countdown, hold still for about three seconds.
+With the camera running, open **Personalize scores** and select **Teach Neutral**. Sit and look at the screen as you normally do. If you use a low webcam or have a full beard, capture your examples with your usual setup and appearance. After the countdown, keep your brow, eyes, and mouth relaxed and hold still for about three seconds.
 
-Face Reader uses the reference when your head angle and facial movements are close to the sample. If you switch cameras or your head angle changes substantially, the app shows ordinary scores and suggests recalibrating. The reference is stored as numeric features in your browser. Select **Clear calibration** to remove it.
+That capture saves both a Neutral example and a reference for how your relaxed face looks at that camera angle. Teach a second expression to help Face Reader distinguish between your examples. If you change cameras or move to a different usual position, retake Neutral. Examples are stored as numeric features in your browser. **Clear personalization** removes the examples and the camera-angle reference.
 
 ## How it works
 

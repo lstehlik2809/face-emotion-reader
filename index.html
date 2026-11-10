@@ -217,7 +217,7 @@ button:disabled { opacity: 0.5; cursor: default; }
   letter-spacing: -0.025em;
 }
 .score-note { margin: 4px 0 10px; color: var(--muted); font-size: 0.85rem; }
-#calibrationCue { padding: 6px 8px; border-radius: 6px; background: var(--bg); }
+#neutralCue { padding: 6px 8px; border-radius: 6px; background: var(--bg); }
 .row {
   display: grid;
   grid-template-columns: 5.2rem minmax(0, 1fr) 2.6rem;
@@ -240,10 +240,8 @@ button:disabled { opacity: 0.5; cursor: default; }
 .personalize { margin-top: 12px; padding-block: 0; }
 .personalize summary { padding: 11px 0; font-weight: 600; cursor: pointer; }
 .personalize[open] { padding-bottom: 14px; }
-.personalize h3 { margin: 0 0 8px; font-size: 0.95rem; }
-.calibration { border-bottom: 1px solid var(--line); margin-bottom: 14px; padding-bottom: 14px; }
-.calibration-result { margin: 0 10px 10px; color: var(--muted); font-size: 0.9rem; }
-.calibration-result:empty { margin: 0; }
+.capture-result { margin: 0 10px 10px; color: var(--muted); font-size: 0.9rem; }
+.capture-result:empty { margin: 0; }
 .teach-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -261,15 +259,12 @@ button:disabled { opacity: 0.5; cursor: default; }
 .countdown {
   position: absolute; inset: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: rgba(0,0,0,0.35); color: #fff; text-align: center; padding: 20px;
+  background: rgba(0,0,0,0.6); color: #fff; text-align: center; padding: 20px;
   pointer-events: none;
 }
 .countdown[hidden] { display: none; }
-.countdown .n { font-size: 5rem; font-weight: 800; line-height: 1; }
-.countdown .msg { font-size: 1.15rem; font-weight: 600; margin-top: 8px; max-width: 18ch; }
-.countdown.calibrating { background: rgba(0,0,0,0.6); }
-.countdown.calibrating .n { font-size: clamp(3rem, 12vw, 5rem); }
-.countdown.calibrating .msg { max-width: 32ch; font-size: clamp(0.95rem, 3vw, 1.15rem); }
+.countdown .n { font-size: clamp(3rem, 12vw, 5rem); font-weight: 800; line-height: 1; }
+.countdown .msg { font-size: clamp(0.95rem, 3vw, 1.15rem); font-weight: 600; margin-top: 8px; max-width: 32ch; }
 
 #recBtn.recording { background: var(--bg); border-color: var(--angry); }
 #recBtn.recording::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--angry); margin-right: 5px; vertical-align: 1px; }
@@ -386,7 +381,7 @@ canvas.timeline {
         <button id="flipBtn">Switch camera</button>
         <button id="smoothBtn" aria-pressed="true">Smoothing on</button>
       </div>
-      <p class="calibration-result" id="calibrationResult" role="status"></p>
+      <p class="capture-result" id="captureResult" role="status"></p>
       <div class="error" id="error" role="alert" hidden></div>
     </div>
 
@@ -394,7 +389,7 @@ canvas.timeline {
       <section class="readings" aria-labelledby="scoresTitle">
         <h2 id="scoresTitle">Live expression scores</h2>
         <p class="score-note">Scores describe visible expressions. How you feel may differ.</p>
-        <p class="score-note" id="calibrationCue" hidden></p>
+        <p class="score-note" id="neutralCue" hidden></p>
         <div id="readout"></div>
         <div class="timeline-wrap">
           <h3 id="timelineTitle">Last 60 seconds</h3>
@@ -406,21 +401,11 @@ canvas.timeline {
       </section>
       <details class="personalize" id="personalize">
         <summary>Personalize scores</summary>
-        <section class="calibration" aria-labelledby="calibrationTitle">
-          <h3 id="calibrationTitle">Neutral calibration</h3>
-          <p class="teach-hint">A low camera angle can make a relaxed face look like a frown. Calibration shifts the scores toward Neutral when your face looks relaxed at your usual angle.</p>
-          <p class="teach-hint" id="calibrationHint">Start the camera and sit as you normally do. Tap Calibrate neutral, look at the screen, and relax your brow, eyes, and mouth. After the countdown, hold still for about three seconds.</p>
-          <p class="teach-hint">Only the numeric reference is saved in this browser. Recalibrate if you change your camera or usual position, or if someone else uses the app.</p>
-          <div class="teach-actions">
-            <button id="calibrateBtn" aria-describedby="calibrationHint" disabled>Calibrate neutral</button>
-            <button id="resetCalibrationBtn" disabled>Clear calibration</button>
-            <span id="calibrationInfo">No calibration saved</span>
-          </div>
-        </section>
-        <h3>Teach expressions</h3>
-        <p class="teach-hint" id="teachHint">Start the camera, then tap Teach and hold the expression for three seconds. Begin with Neutral. Examples stay in this browser.</p>
-        <div class="teach-list" id="teachList" aria-describedby="teachHint"></div>
-        <div class="teach-actions"><button id="resetBtn">Forget taught faces</button><span id="learnedInfo" role="status">No faces taught yet</span></div>
+        <p class="teach-hint">Teach the app how you normally look on camera. Use your usual seat, lighting, webcam placement, and appearance, even if your webcam sits low or you have a full beard.</p>
+        <p class="teach-hint" id="teachHint">Start the camera, then choose Teach Neutral. Look at the screen and relax your brow, eyes, and mouth. After the countdown, hold still for about three seconds. This saves your relaxed expression and a reference for your usual head angle.</p>
+        <p class="teach-hint">Then teach another expression so the app can distinguish your examples. Retake Neutral if you change your camera or usual position. Only numeric examples and the reference are saved in this browser.</p>
+        <div class="teach-list" id="teachList" role="group" aria-label="Teach expressions" aria-describedby="teachHint"></div>
+        <div class="teach-actions"><button id="resetBtn" disabled>Clear personalization</button><span id="learnedInfo">No expressions taught yet</span></div>
       </details>
     </div>
   </div>
@@ -455,7 +440,9 @@ import {
   const EXPRESSION_MODEL = "./models/enet_b0_8_best_afew.onnx";
   // HSEmotion's output order differs from the order of the readout and CSV.
   const MODEL_KEYS = ["angry", "contempt", "disgusted", "fearful", "happy", "neutral", "sad", "surprised"];
-  const STORE_KEY = "facereader.taught.v3";
+  const BLENDSHAPE_COUNT = 52;
+  const PERSONALIZATION_STORE_KEY = "facereader.personalization.v1";
+  const TAUGHT_STORE_KEY = "facereader.taught.v3";
 
   const EMO = [
     { key: "happy",     label: "Happy" },
@@ -476,7 +463,7 @@ import {
   const statusEl = $("status"), errorEl = $("error");
   const wordEl = $("word"), subEl = $("sub"), verdictEl = $("verdict");
   const countdown = $("countdown"), cdN = $("cdN"), cdMsg = $("cdMsg");
-  const calibrateBtn = $("calibrateBtn"), resetCalibrationBtn = $("resetCalibrationBtn");
+  const captureResult = $("captureResult"), resetBtn = $("resetBtn");
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   let stream = null, running = false, paused = false, facing = "user";
@@ -487,9 +474,8 @@ import {
   const HISTORY_MS = 60000;
 
   // Personal teaching state: { key: { n, mean: number[] } }, plus pooled variance
-  let taught = loadTaught();
-  let capture = null, teachCountdown = null;
-  let neutralProfile = loadNeutralProfile(), calibrationCapture = null;
+  let { taught, neutralProfile } = loadPersonalization();
+  let capture = null;
 
   function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
   function colorOf(key) { return cssVar("--" + key); }
@@ -515,7 +501,8 @@ import {
     btn.className = "teach";
     btn.disabled = true;
     btn.addEventListener("click", () => startTeach(e.key));
-    teachList.appendChild(btn);
+    if (e.key === "neutral") teachList.prepend(btn);
+    else teachList.appendChild(btn);
 
     const item = document.createElement("li");
     item.style.setProperty("--series", color);
@@ -533,17 +520,13 @@ import {
       btn.classList.toggle("learned", on);
     });
     const list = KEYS.filter(k => taught[k]).map(labelOf);
-    $("learnedInfo").textContent = list.length ? "Taught: " + list.join(", ") : "No faces taught yet";
+    const summary = list.length ? "Taught " + list.join(", ") : "No expressions taught yet";
+    $("learnedInfo").textContent = neutralProfile ? summary + " · Neutral reference available" : summary;
   }
   function updateCaptureAvailability() {
-    const unavailable = !canProcessFrame() || document.hidden;
-    const teaching = !!capture || teachCountdown !== null;
-    KEYS.forEach(k => { rows[k].btn.disabled = unavailable || teaching || !!calibrationCapture; });
-    calibrateBtn.disabled = unavailable || teaching;
-    calibrateBtn.textContent = calibrationCapture ? "Cancel calibration" :
-      neutralProfile ? "Recalibrate neutral" : "Calibrate neutral";
-    resetCalibrationBtn.disabled = !neutralProfile || !!calibrationCapture;
-    $("calibrationInfo").textContent = neutralProfile ? "Neutral reference available" : "No calibration saved";
+    const unavailable = !canProcessFrame() || document.hidden || !!capture;
+    KEYS.forEach(k => { rows[k].btn.disabled = unavailable; });
+    resetBtn.disabled = !!capture || (!neutralProfile && !KEYS.some(k => taught[k]));
   }
   refreshTaughtUI();
   updateCaptureAvailability();
@@ -551,28 +534,54 @@ import {
     try { window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redrawCharts); } catch (_) {}
   }
 
-  $("resetBtn").addEventListener("click", () => {
+  resetBtn.addEventListener("click", () => {
+    if (capture || resetBtn.disabled) return;
     taught = {};
-    try { localStorage.removeItem(STORE_KEY); } catch (_) {}
+    neutralProfile = null;
+    showNeutralCue();
+    captureResult.textContent = savePersonalization() ? "Personalization cleared." :
+      "Personalization cleared for this visit. The browser couldn’t clear the saved data.";
     refreshTaughtUI();
+    updateCaptureAvailability();
   });
 
   // ---------- Storage ----------
-  function loadTaught() {
-    try {
-      const raw = localStorage.getItem(STORE_KEY);
-      if (!raw) return {};
-      const obj = JSON.parse(raw);
-      return (obj && typeof obj === "object") ? obj : {};
-    } catch (_) { return {}; }
-  }
-  function saveTaught() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(taught)); } catch (_) {}
+  function parseStored(raw) {
+    try { return JSON.parse(raw); }
+    catch (_) { return null; }
   }
 
-  function loadNeutralProfile() {
-    try { return parseNeutralProfile(localStorage.getItem(NEUTRAL_STORE_KEY)); }
-    catch (_) { return null; }
+  function loadPersonalization() {
+    try {
+      const raw = localStorage.getItem(PERSONALIZATION_STORE_KEY);
+      const saved = parseStored(raw);
+      const examples = raw === null ? parseStored(localStorage.getItem(TAUGHT_STORE_KEY)) : saved?.taught;
+      const reference = raw === null ? localStorage.getItem(NEUTRAL_STORE_KEY) : JSON.stringify(saved?.neutralProfile);
+      const validExamples = {};
+      const featureCount = BLENDSHAPE_COUNT + KEYS.length;
+      // Summing sample means can leave a value slightly above one.
+      const tolerance = 1e-9;
+      for (const key of KEYS) {
+        const { n, mean, spread } = examples?.[key] ?? {};
+        if (Number.isInteger(n) && n > 0 && Number.isFinite(spread) && spread >= 0 &&
+            Array.isArray(mean) && mean.length === featureCount &&
+            mean.every(value => Number.isFinite(value) && value >= -tolerance && value <= 1 + tolerance)) {
+          validExamples[key] = { n, mean, spread };
+        }
+      }
+      return { taught: validExamples, neutralProfile: parseNeutralProfile(reference) };
+    } catch (_) { return { taught: {}, neutralProfile: null }; }
+  }
+
+  function savePersonalization() {
+    try { localStorage.setItem(PERSONALIZATION_STORE_KEY, JSON.stringify({ taught, neutralProfile })); }
+    catch (_) { return false; }
+    // The combined record takes precedence, including when cleared. Remove the
+    // old copies only after the browser has saved that record.
+    for (const key of [TAUGHT_STORE_KEY, NEUTRAL_STORE_KEY]) {
+      try { localStorage.removeItem(key); } catch (_) {}
+    }
+    return true;
   }
 
   // ---------- Model loading ----------
@@ -615,7 +624,7 @@ import {
     if (stream) stream.getTracks().forEach(t => t.stop());
     stream = null;
     activeCamera = null;
-    showCalibrationCue();
+    showNeutralCue();
     video.srcObject = null;
     lastVideoTime = -1;
   }
@@ -632,7 +641,7 @@ import {
     video.srcObject = stream;
     if (!paused) await video.play();
     activeCamera = cameraKey(stream.getVideoTracks()[0]?.getSettings?.(), direction);
-    showCalibrationCue(neutralAdjustment(neutralProfile, activeCamera, null).cue);
+    showNeutralCue(neutralAdjustment(neutralProfile, activeCamera, null).cue);
     const mirror = direction === "user";
     video.classList.toggle("mirrored", mirror);
     overlay.classList.toggle("mirrored", mirror);
@@ -687,7 +696,7 @@ import {
   pauseBtn.addEventListener("click", () => {
     paused = !paused;
     frameVersion++;
-    if (paused) endCalibration("Calibration canceled when the camera paused. Resume and try again.");
+    if (paused) endTeach("Teaching canceled when the camera paused. Resume and try again.");
     updateCaptureAvailability();
     pauseBtn.textContent = paused ? "Resume" : "Pause";
     setStatus(paused ? "Paused" : "Live");
@@ -711,7 +720,7 @@ import {
     switchingCamera = true;
     frameVersion++;
     flipBtn.disabled = pauseBtn.disabled = true;
-    endCalibration("Calibration canceled when you switched cameras. Try again with this camera.");
+    endTeach("Teaching canceled when you switched cameras. Try again with this camera.");
     updateCaptureAvailability();
     smoothed = null;
     try {
@@ -741,92 +750,96 @@ import {
     smoothed = null;
   });
 
-  // ---------- Shared capture countdown ----------
+  // ---------- Teaching ----------
+  const CAPTURE_HOLD_MS = 3000, CAPTURE_TIMEOUT_MS = 8000, CAPTURE_MIN_FRAMES = 12;
+  const NEUTRAL_MAX_GAP_MS = 1000, NEUTRAL_MAX_SHIFT = 0.05, NEUTRAL_MAX_SIZE_CHANGE = 0.15;
+  const NEUTRAL_HOLD_PROMPT = "Stay relaxed and hold still for about three seconds.";
+
   function setCountdown(number, message) {
     if (cdN.textContent !== String(number)) cdN.textContent = number;
     if (cdMsg.textContent !== message) cdMsg.textContent = message;
   }
 
-  function startCountdown(message, onHold, calibrating = false) {
-    countdown.classList.toggle("calibrating", calibrating);
-    setCountdown(3, message);
-    countdown.hidden = false;
-    stage.scrollIntoView({ block: "nearest" });
-    let count = 3;
-    const timer = setInterval(() => {
-      count -= 1;
-      if (count > 0) { setCountdown(count, message); return; }
-      clearInterval(timer);
-      onHold();
-    }, 1000);
-    return timer;
-  }
-
-  // ---------- Neutral calibration ----------
-  const NEUTRAL_HOLD_MS = 3000, NEUTRAL_TIMEOUT_MS = 8000;
-  const NEUTRAL_MIN_FRAMES = 12, NEUTRAL_MAX_GAP_MS = 1000;
-  const NEUTRAL_MAX_SHIFT = 0.05, NEUTRAL_MAX_SIZE_CHANGE = 0.15;
-  const NEUTRAL_HOLD_PROMPT = "Stay relaxed and hold still for about three seconds.";
-  const CALIBRATION_CUES = {
-    camera: "Neutral calibration is saved for a different camera. Recalibrate to use it here.",
-    pose: "Your head angle differs from calibration. Return to your usual angle or recalibrate."
-  };
-
-  function showCalibrationCue(reason) {
-    const cue = $("calibrationCue");
-    const message = CALIBRATION_CUES[reason] || "";
+  function showNeutralCue(reason) {
+    const cue = $("neutralCue");
+    const action = taught.neutral ? "Retake Neutral" : "Teach Neutral";
+    let message = "";
+    if (reason === "camera") message = "Your Neutral reference is for a different camera. Choose " + action + " to update it.";
+    if (reason === "pose") message = "Your head angle differs from your Neutral reference. Return to your usual angle or choose " + action + ".";
     if (cue.textContent !== message) cue.textContent = message;
     cue.hidden = !message;
   }
 
-  function showCalibrationResult(message) {
-    $("calibrationResult").textContent = message;
+  function isCurrentCapture(attempt) {
+    return attempt && capture === attempt && activeCamera === attempt.camera && canProcessFrame() && !document.hidden;
   }
 
-  function endCalibration(message) {
-    if (!calibrationCapture) return;
-    clearInterval(calibrationCapture.prepareTimer);
-    clearTimeout(calibrationCapture.timeout);
-    calibrationCapture = null;
+  function endTeach(message) {
+    if (!capture) return;
+    clearInterval(capture.prepareTimer);
+    clearTimeout(capture.timeout);
+    capture = null;
     countdown.hidden = true;
-    showCalibrationResult(message);
+    captureResult.textContent = message;
     updateCaptureAvailability();
   }
 
-  calibrateBtn.addEventListener("click", () => {
-    if (calibrationCapture) { endCalibration("Calibration canceled."); return; }
-    if (!canProcessFrame() || document.hidden || capture || teachCountdown !== null || activeCamera === null) return;
+  function startTeach(key) {
+    if (capture || !canProcessFrame() || document.hidden || activeCamera === null) return;
     clearError();
-    showCalibrationResult("");
-    const attempt = calibrationCapture = { camera: activeCamera, samples: [] };
-    attempt.prepareTimer = startCountdown("Sit as you normally do. Look at the screen and relax your brow, eyes, and mouth.", () => {
+    captureResult.textContent = "";
+    const attempt = capture = { key, camera: activeCamera, samples: [] };
+    const label = labelOf(key).toLowerCase();
+    const prepare = key === "neutral" ? "Look at the screen and relax your brow, eyes, and mouth." :
+      "Get ready to make your " + label + " face.";
+    const hold = key === "neutral" ? NEUTRAL_HOLD_PROMPT : "Keep your " + label + " face for three seconds.";
+    let count = 3;
+    setCountdown(count, prepare);
+    countdown.hidden = false;
+    stage.scrollIntoView({ block: "nearest" });
+    attempt.prepareTimer = setInterval(() => {
+      if (!isCurrentCapture(attempt)) return;
+      if (--count > 0) { setCountdown(count, prepare); return; }
+      clearInterval(attempt.prepareTimer);
       attempt.prepareTimer = null;
-      setCountdown("Hold", NEUTRAL_HOLD_PROMPT);
-      attempt.timeout = setTimeout(() => endCalibration(
-        "Couldn’t get three steady seconds. Keep your whole face in view, relax, and try again."), NEUTRAL_TIMEOUT_MS);
-    }, true);
+      attempt.holdStarted = performance.now();
+      attempt.deadline = attempt.holdStarted + CAPTURE_TIMEOUT_MS;
+      setCountdown("Hold", hold);
+      attempt.timeout = setTimeout(() => {
+        if (isCurrentCapture(attempt)) timeoutTeach(attempt);
+      }, CAPTURE_TIMEOUT_MS);
+    }, 1000);
     updateCaptureAvailability();
-  });
+  }
 
-  resetCalibrationBtn.addEventListener("click", () => {
-    if (!neutralProfile || calibrationCapture) return;
-    neutralProfile = null;
-    showCalibrationCue();
-    try {
-      localStorage.removeItem(NEUTRAL_STORE_KEY);
-      showCalibrationResult("Neutral calibration cleared.");
-    } catch (_) {
-      showCalibrationResult("Calibration cleared for this visit. The browser couldn’t remove the saved reference.");
+  function timeoutTeach(attempt) {
+    // Preserve the smaller sample minimum for other expressions on slow devices.
+    if (attempt.key !== "neutral" && attempt.samples.length >= 4) {
+      finishTeach(attempt);
+      return;
     }
-    updateCaptureAvailability();
-  });
+    endTeach(attempt.key === "neutral" ?
+      "Couldn’t capture a steady Neutral example and head-angle reference. Keep your whole face in view, relax, and try again." :
+      "Couldn’t see your face clearly enough. Keep your whole face in view and try again.");
+  }
 
-  function collectNeutralSample(sample, position, ts) {
-    const attempt = calibrationCapture;
-    if (!attempt || attempt.prepareTimer !== null) return;
-    if (!sample || !position) {
+  function collectTeachFrame(attempt, feat, sample, position, ts) {
+    if (!isCurrentCapture(attempt)) return;
+    const now = performance.now();
+    if (now >= attempt.deadline) { timeoutTeach(attempt); return; }
+    if (attempt.key === "neutral") {
+      collectNeutralTeachFrame(attempt, feat, sample, position, ts);
+    } else {
+      if (feat) attempt.samples.push({ feat });
+      if (now - attempt.holdStarted >= CAPTURE_HOLD_MS && attempt.samples.length >= CAPTURE_MIN_FRAMES) finishTeach(attempt);
+    }
+  }
+
+  function collectNeutralTeachFrame(attempt, feat, sample, position, ts) {
+    if (!feat || !sample || !position) {
       attempt.samples.length = 0;
-      setCountdown("Hold", "Keep your whole face in view, relax, and hold still.");
+      setCountdown("Hold", position ? "Look at the screen so the app can read your head angle and expression." :
+        "Keep your whole face in view, relax, and hold still.");
       return;
     }
     if (attempt.samples.length) {
@@ -834,7 +847,7 @@ import {
       const shift = Math.hypot(position.x - start.x, position.y - start.y);
       const sizeChange = Math.abs(position.size / start.size - 1);
       if (ts - attempt.lastFrame > NEUTRAL_MAX_GAP_MS || shift > NEUTRAL_MAX_SHIFT ||
-          sizeChange > NEUTRAL_MAX_SIZE_CHANGE || !stableNeutralSample(attempt.samples[0], sample)) {
+          sizeChange > NEUTRAL_MAX_SIZE_CHANGE || !stableNeutralSample(attempt.samples[0].sample, sample)) {
         attempt.samples.length = 0;
       }
     }
@@ -843,59 +856,28 @@ import {
       attempt.position = position;
     }
     setCountdown("Hold", NEUTRAL_HOLD_PROMPT);
-    attempt.samples.push(sample);
+    attempt.samples.push({ feat, sample });
     attempt.lastFrame = ts;
-    if (ts - attempt.start < NEUTRAL_HOLD_MS || attempt.samples.length < NEUTRAL_MIN_FRAMES) return;
-
-    neutralProfile = makeNeutralProfile(attempt.camera, attempt.samples);
-    try {
-      localStorage.setItem(NEUTRAL_STORE_KEY, JSON.stringify(neutralProfile));
-      endCalibration("Neutral calibration saved for this camera.");
-    } catch (_) {
-      endCalibration("Calibration is active for this visit. The browser couldn’t save the reference.");
+    if (ts - attempt.start >= CAPTURE_HOLD_MS && attempt.samples.length >= CAPTURE_MIN_FRAMES) {
+      finishTeach(attempt, makeNeutralProfile(attempt.camera, attempt.samples.map(s => s.sample)));
     }
   }
 
-  // ---------- Teaching ----------
-  function startTeach(key) {
-    if (!canProcessFrame() || document.hidden) {
-      showError("Start the camera first, then tap Teach.");
-      return;
-    }
-    if (teachCountdown !== null || capture || calibrationCapture) return;
-    clearError();
-    teachCountdown = startCountdown("Get ready to make your " + labelOf(key).toLowerCase() + " face", () => {
-      teachCountdown = null;
-      setCountdown("Hold", "Keep your " + labelOf(key).toLowerCase() + " face for 3 seconds");
-      capture = { key, samples: [], start: performance.now() };
-    });
-    updateCaptureAvailability();
-  }
-
-  function finishTeach() {
-    const { key, samples } = capture;
-    capture = null;
-    countdown.hidden = true;
-    updateCaptureAvailability();
-    if (samples.length < 4) {
-      showError("Couldn’t see your face clearly enough. Keep your whole face in view and try again.");
-      return;
-    }
+  function finishTeach(attempt, nextProfile = neutralProfile) {
+    const { key } = attempt;
+    const samples = attempt.samples.map(s => s.feat);
     const dim = samples[0].length;
     const mean = new Array(dim).fill(0);
     samples.forEach(s => { for (let i = 0; i < dim; i++) mean[i] += s[i] / samples.length; });
     let spread = 0;
     samples.forEach(s => { let d = 0; for (let i = 0; i < dim; i++) d += (s[i] - mean[i]) ** 2; spread += d / samples.length; });
     taught[key] = { n: samples.length, mean, spread };
-    saveTaught();
+    neutralProfile = nextProfile;
+    const saved = savePersonalization();
     refreshTaughtUI();
-  }
-
-  // Hold for at least 3 s and 12 frames; give slow phones up to 8 s
-  function checkCaptureDone() {
-    if (!capture || !capture.start) return;
-    const el = performance.now() - capture.start;
-    if ((el >= 3000 && capture.samples.length >= 12) || el >= 8000) finishTeach();
+    const subject = key === "neutral" ? "Neutral example and head-angle reference" : labelOf(key) + " example";
+    endTeach(saved ? subject + " saved." : subject + (key === "neutral" ? " are" : " is") +
+      " active for this visit. The browser couldn’t save your changes.");
   }
 
   // Feature vector: 52 blendshape scores + square-rooted model probabilities
@@ -998,14 +980,18 @@ import {
   }
 
   async function step(ts, version) {
+    // Only the capture that was already holding when this video frame started
+    // can use its result, even if a countdown ends while inference is pending.
+    const attempt = capture && ts >= capture.holdStarted ? capture : null;
+    const capturingNeutral = attempt?.key === "neutral";
     const res = landmarker.detectForVideo(video, ts);
     const w = video.videoWidth, h = video.videoHeight;
     if (overlay.width !== w || overlay.height !== h) { overlay.width = w; overlay.height = h; }
     const ctx = overlay.getContext("2d");
 
     if (!res.faceLandmarks || !res.faceLandmarks.length) {
-      collectNeutralSample(null, null, ts);
-      showCalibrationCue(neutralAdjustment(neutralProfile, activeCamera, null).cue);
+      collectTeachFrame(attempt, null, null, null, ts);
+      showNeutralCue(neutralAdjustment(neutralProfile, activeCamera, null).cue);
       ctx.clearRect(0, 0, w, h);
       renderNoFace();
       return;
@@ -1017,17 +1003,8 @@ import {
     const bx = minX * w, by = minY * h, bw = (maxX - minX) * w, bh = (maxY - minY) * h;
     const categories = res.faceBlendshapes?.[0]?.categories;
     const cats = Array.isArray(categories) && categories.every(c => Number.isFinite(c?.score)) ? categories : [];
-    const sample = neutralProfile || calibrationCapture ?
+    const sample = neutralProfile || capturingNeutral ?
       neutralSample(res.facialTransformationMatrixes?.[0], cats) : null;
-    if (calibrationCapture) {
-      const wholeFace = minX >= 0 && minY >= 0 && maxX <= 1 && maxY <= 1 && bw > 0 && bh > 0;
-      const position = wholeFace ? {
-        x: (minX + maxX) / 2,
-        y: (minY + maxY) / 2,
-        size: Math.max(maxX - minX, maxY - minY)
-      } : null;
-      collectNeutralSample(sample, position, ts);
-    }
 
     // Square crop around the face for the expression model
     const side = Math.max(bw, bh) * 1.08;
@@ -1040,13 +1017,19 @@ import {
 
     const blend = cats.map(c => c.score);
     const feat = blend.length ? featureVector(blend, base) : null;
-
-    if (capture && feat) capture.samples.push(feat);
-    checkCaptureDone();
+    const wholeFace = minX >= 0 && minY >= 0 && maxX <= 1 && maxY <= 1 && bw > 0 && bh > 0;
+    const position = capturingNeutral && wholeFace ? {
+      x: (minX + maxX) / 2,
+      y: (minY + maxY) / 2,
+      size: Math.max(maxX - minX, maxY - minY)
+    } : null;
+    const completeFeatures = attempt && blend.length === BLENDSHAPE_COUNT &&
+      blend.every(value => value >= 0 && value <= 1) && MODEL_KEYS.every(k => Number.isFinite(base[k]));
+    collectTeachFrame(attempt, completeFeatures ? feat : null, sample, position, ts);
 
     const probs = feat ? applyPersonal(base, feat) : base;
     const { weight, cue } = neutralAdjustment(neutralProfile, activeCamera, sample);
-    showCalibrationCue(cue);
+    showNeutralCue(cue);
     ctx.clearRect(0, 0, w, h);
     render(probs, { x: bx, y: by, width: bw, height: bh }, weight);
   }
@@ -1068,7 +1051,6 @@ import {
       subEl.textContent = "Bring your face into view, facing the camera.";
       clearReadings();
     }
-    checkCaptureDone();
     recordFrame(null);
     pushHistory(null, 0);
     drawTimeline();
@@ -1421,7 +1403,7 @@ import {
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
-      endCalibration("Calibration canceled when you left this tab. Resume the camera and try again.");
+      endTeach("Teaching canceled when you left this tab. Resume the camera and try again.");
       if (running && !paused) pauseBtn.click();
     }
     updateCaptureAvailability();
