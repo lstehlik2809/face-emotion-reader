@@ -217,6 +217,7 @@ button:disabled { opacity: 0.5; cursor: default; }
   letter-spacing: -0.025em;
 }
 .score-note { margin: 4px 0 10px; color: var(--muted); font-size: 0.85rem; }
+#calibrationCue { padding: 6px 8px; border-radius: 6px; background: var(--bg); }
 .row {
   display: grid;
   grid-template-columns: 5.2rem minmax(0, 1fr) 2.6rem;
@@ -239,6 +240,10 @@ button:disabled { opacity: 0.5; cursor: default; }
 .personalize { margin-top: 12px; padding-block: 0; }
 .personalize summary { padding: 11px 0; font-weight: 600; cursor: pointer; }
 .personalize[open] { padding-bottom: 14px; }
+.personalize h3 { margin: 0 0 8px; font-size: 0.95rem; }
+.calibration { border-bottom: 1px solid var(--line); margin-bottom: 14px; padding-bottom: 14px; }
+.calibration-result { margin: 0 10px 10px; color: var(--muted); font-size: 0.9rem; }
+.calibration-result:empty { margin: 0; }
 .teach-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -262,6 +267,9 @@ button:disabled { opacity: 0.5; cursor: default; }
 .countdown[hidden] { display: none; }
 .countdown .n { font-size: 5rem; font-weight: 800; line-height: 1; }
 .countdown .msg { font-size: 1.15rem; font-weight: 600; margin-top: 8px; max-width: 18ch; }
+.countdown.calibrating { background: rgba(0,0,0,0.6); }
+.countdown.calibrating .n { font-size: clamp(3rem, 12vw, 5rem); }
+.countdown.calibrating .msg { max-width: 32ch; font-size: clamp(0.95rem, 3vw, 1.15rem); }
 
 #recBtn.recording { background: var(--bg); border-color: var(--angry); }
 #recBtn.recording::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--angry); margin-right: 5px; vertical-align: 1px; }
@@ -378,6 +386,7 @@ canvas.timeline {
         <button id="flipBtn">Switch camera</button>
         <button id="smoothBtn" aria-pressed="true">Smoothing on</button>
       </div>
+      <p class="calibration-result" id="calibrationResult" role="status"></p>
       <div class="error" id="error" role="alert" hidden></div>
     </div>
 
@@ -385,6 +394,7 @@ canvas.timeline {
       <section class="readings" aria-labelledby="scoresTitle">
         <h2 id="scoresTitle">Live expression scores</h2>
         <p class="score-note">Scores describe visible expressions. How you feel may differ.</p>
+        <p class="score-note" id="calibrationCue" hidden></p>
         <div id="readout"></div>
         <div class="timeline-wrap">
           <h3 id="timelineTitle">Last 60 seconds</h3>
@@ -396,6 +406,18 @@ canvas.timeline {
       </section>
       <details class="personalize" id="personalize">
         <summary>Personalize scores</summary>
+        <section class="calibration" aria-labelledby="calibrationTitle">
+          <h3 id="calibrationTitle">Neutral calibration</h3>
+          <p class="teach-hint">A low camera angle can make a relaxed face look like a frown. Calibration shifts the scores toward Neutral when your face looks relaxed at your usual angle.</p>
+          <p class="teach-hint" id="calibrationHint">Start the camera and sit as you normally do. Tap Calibrate neutral, look at the screen, and relax your brow, eyes, and mouth. After the countdown, hold still for about three seconds.</p>
+          <p class="teach-hint">Only the numeric reference is saved in this browser. Recalibrate if you change your camera or usual position, or if someone else uses the app.</p>
+          <div class="teach-actions">
+            <button id="calibrateBtn" aria-describedby="calibrationHint" disabled>Calibrate neutral</button>
+            <button id="resetCalibrationBtn" disabled>Clear calibration</button>
+            <span id="calibrationInfo">No calibration saved</span>
+          </div>
+        </section>
+        <h3>Teach expressions</h3>
         <p class="teach-hint" id="teachHint">Start the camera, then tap Teach and hold the expression for three seconds. Begin with Neutral. Examples stay in this browser.</p>
         <div class="teach-list" id="teachList" aria-describedby="teachHint"></div>
         <div class="teach-actions"><button id="resetBtn">Forget taught faces</button><span id="learnedInfo" role="status">No faces taught yet</span></div>
@@ -417,7 +439,12 @@ canvas.timeline {
   <p class="note"><strong>Camera tip.</strong> Use even front lighting, keep your face about a third of the frame, and avoid strong backlight.</p>
 </main>
 
-<script>
+<script type="module">
+import {
+  NEUTRAL_STORE_KEY, blendNeutral, cameraKey, makeNeutralProfile, neutralAdjustment,
+  neutralSample, parseNeutralProfile, stableNeutralSample
+} from "./neutral-calibration.mjs";
+
 (function () {
   "use strict";
 
@@ -448,10 +475,12 @@ canvas.timeline {
   const stage = $("stage"), guide = $("guide");
   const statusEl = $("status"), errorEl = $("error");
   const wordEl = $("word"), subEl = $("sub"), verdictEl = $("verdict");
+  const countdown = $("countdown"), cdN = $("cdN"), cdMsg = $("cdMsg");
+  const calibrateBtn = $("calibrateBtn"), resetCalibrationBtn = $("resetCalibrationBtn");
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   let stream = null, running = false, paused = false, facing = "user";
-  let switchingCamera = false, frameVersion = 0;
+  let switchingCamera = false, frameVersion = 0, activeCamera = null;
   let smoothing = true, smoothed = null;
   let landmarker = null, ort = null, expressionModel = null;
   const history = [];
@@ -459,7 +488,8 @@ canvas.timeline {
 
   // Personal teaching state: { key: { n, mean: number[] } }, plus pooled variance
   let taught = loadTaught();
-  let capture = null; // { key, samples: [], until }
+  let capture = null, teachCountdown = null;
+  let neutralProfile = loadNeutralProfile(), calibrationCapture = null;
 
   function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
   function colorOf(key) { return cssVar("--" + key); }
@@ -505,11 +535,18 @@ canvas.timeline {
     const list = KEYS.filter(k => taught[k]).map(labelOf);
     $("learnedInfo").textContent = list.length ? "Taught: " + list.join(", ") : "No faces taught yet";
   }
-  function updateTeachAvailability() {
-    const disabled = !running || paused || switchingCamera;
-    KEYS.forEach(k => { rows[k].btn.disabled = disabled; });
+  function updateCaptureAvailability() {
+    const unavailable = !canProcessFrame() || document.hidden;
+    const teaching = !!capture || teachCountdown !== null;
+    KEYS.forEach(k => { rows[k].btn.disabled = unavailable || teaching || !!calibrationCapture; });
+    calibrateBtn.disabled = unavailable || teaching;
+    calibrateBtn.textContent = calibrationCapture ? "Cancel calibration" :
+      neutralProfile ? "Recalibrate neutral" : "Calibrate neutral";
+    resetCalibrationBtn.disabled = !neutralProfile || !!calibrationCapture;
+    $("calibrationInfo").textContent = neutralProfile ? "Neutral reference available" : "No calibration saved";
   }
   refreshTaughtUI();
+  updateCaptureAvailability();
   if (window.matchMedia) {
     try { window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redrawCharts); } catch (_) {}
   }
@@ -533,6 +570,11 @@ canvas.timeline {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(taught)); } catch (_) {}
   }
 
+  function loadNeutralProfile() {
+    try { return parseNeutralProfile(localStorage.getItem(NEUTRAL_STORE_KEY)); }
+    catch (_) { return null; }
+  }
+
   // ---------- Model loading ----------
   async function loadModels() {
     if (!expressionModel) {
@@ -554,6 +596,7 @@ canvas.timeline {
         const opts = (delegate) => ({
           baseOptions: { modelAssetPath: MP_MODEL, delegate },
           outputFaceBlendshapes: true,
+          outputFacialTransformationMatrixes: true,
           runningMode: "VIDEO",
           numFaces: 1
         });
@@ -571,6 +614,8 @@ canvas.timeline {
   function stopCamera() {
     if (stream) stream.getTracks().forEach(t => t.stop());
     stream = null;
+    activeCamera = null;
+    showCalibrationCue();
     video.srcObject = null;
     lastVideoTime = -1;
   }
@@ -586,6 +631,8 @@ canvas.timeline {
     });
     video.srcObject = stream;
     if (!paused) await video.play();
+    activeCamera = cameraKey(stream.getVideoTracks()[0]?.getSettings?.(), direction);
+    showCalibrationCue(neutralAdjustment(neutralProfile, activeCamera, null).cue);
     const mirror = direction === "user";
     video.classList.toggle("mirrored", mirror);
     overlay.classList.toggle("mirrored", mirror);
@@ -599,7 +646,7 @@ canvas.timeline {
     verdictEl.hidden = !active;
     $("controls").hidden = !active;
     startBtn.disabled = active;
-    updateTeachAvailability();
+    updateCaptureAvailability();
     if (!active) {
       showingFace = null;
       clearReadings();
@@ -640,7 +687,8 @@ canvas.timeline {
   pauseBtn.addEventListener("click", () => {
     paused = !paused;
     frameVersion++;
-    updateTeachAvailability();
+    if (paused) endCalibration("Calibration canceled when the camera paused. Resume and try again.");
+    updateCaptureAvailability();
     pauseBtn.textContent = paused ? "Resume" : "Pause";
     setStatus(paused ? "Paused" : "Live");
     if (paused) {
@@ -663,7 +711,8 @@ canvas.timeline {
     switchingCamera = true;
     frameVersion++;
     flipBtn.disabled = pauseBtn.disabled = true;
-    updateTeachAvailability();
+    endCalibration("Calibration canceled when you switched cameras. Try again with this camera.");
+    updateCaptureAvailability();
     smoothed = null;
     try {
       await startCamera(direction);
@@ -679,7 +728,7 @@ canvas.timeline {
     } finally {
       switchingCamera = false;
       flipBtn.disabled = pauseBtn.disabled = false;
-      updateTeachAvailability();
+      updateCaptureAvailability();
       if (document.hidden && running && !paused) pauseBtn.click();
       scheduleFrame();
     }
@@ -692,33 +741,142 @@ canvas.timeline {
     smoothed = null;
   });
 
+  // ---------- Shared capture countdown ----------
+  function setCountdown(number, message) {
+    if (cdN.textContent !== String(number)) cdN.textContent = number;
+    if (cdMsg.textContent !== message) cdMsg.textContent = message;
+  }
+
+  function startCountdown(message, onHold, calibrating = false) {
+    countdown.classList.toggle("calibrating", calibrating);
+    setCountdown(3, message);
+    countdown.hidden = false;
+    stage.scrollIntoView({ block: "nearest" });
+    let count = 3;
+    const timer = setInterval(() => {
+      count -= 1;
+      if (count > 0) { setCountdown(count, message); return; }
+      clearInterval(timer);
+      onHold();
+    }, 1000);
+    return timer;
+  }
+
+  // ---------- Neutral calibration ----------
+  const NEUTRAL_HOLD_MS = 3000, NEUTRAL_TIMEOUT_MS = 8000;
+  const NEUTRAL_MIN_FRAMES = 12, NEUTRAL_MAX_GAP_MS = 1000;
+  const NEUTRAL_MAX_SHIFT = 0.05, NEUTRAL_MAX_SIZE_CHANGE = 0.15;
+  const NEUTRAL_HOLD_PROMPT = "Stay relaxed and hold still for about three seconds.";
+  const CALIBRATION_CUES = {
+    camera: "Neutral calibration is saved for a different camera. Recalibrate to use it here.",
+    pose: "Your head angle differs from calibration. Return to your usual angle or recalibrate."
+  };
+
+  function showCalibrationCue(reason) {
+    const cue = $("calibrationCue");
+    const message = CALIBRATION_CUES[reason] || "";
+    if (cue.textContent !== message) cue.textContent = message;
+    cue.hidden = !message;
+  }
+
+  function showCalibrationResult(message) {
+    $("calibrationResult").textContent = message;
+  }
+
+  function endCalibration(message) {
+    if (!calibrationCapture) return;
+    clearInterval(calibrationCapture.prepareTimer);
+    clearTimeout(calibrationCapture.timeout);
+    calibrationCapture = null;
+    countdown.hidden = true;
+    showCalibrationResult(message);
+    updateCaptureAvailability();
+  }
+
+  calibrateBtn.addEventListener("click", () => {
+    if (calibrationCapture) { endCalibration("Calibration canceled."); return; }
+    if (!canProcessFrame() || document.hidden || capture || teachCountdown !== null || activeCamera === null) return;
+    clearError();
+    showCalibrationResult("");
+    const attempt = calibrationCapture = { camera: activeCamera, samples: [] };
+    attempt.prepareTimer = startCountdown("Sit as you normally do. Look at the screen and relax your brow, eyes, and mouth.", () => {
+      attempt.prepareTimer = null;
+      setCountdown("Hold", NEUTRAL_HOLD_PROMPT);
+      attempt.timeout = setTimeout(() => endCalibration(
+        "Couldn’t get three steady seconds. Keep your whole face in view, relax, and try again."), NEUTRAL_TIMEOUT_MS);
+    }, true);
+    updateCaptureAvailability();
+  });
+
+  resetCalibrationBtn.addEventListener("click", () => {
+    if (!neutralProfile || calibrationCapture) return;
+    neutralProfile = null;
+    showCalibrationCue();
+    try {
+      localStorage.removeItem(NEUTRAL_STORE_KEY);
+      showCalibrationResult("Neutral calibration cleared.");
+    } catch (_) {
+      showCalibrationResult("Calibration cleared for this visit. The browser couldn’t remove the saved reference.");
+    }
+    updateCaptureAvailability();
+  });
+
+  function collectNeutralSample(sample, position, ts) {
+    const attempt = calibrationCapture;
+    if (!attempt || attempt.prepareTimer !== null) return;
+    if (!sample || !position) {
+      attempt.samples.length = 0;
+      setCountdown("Hold", "Keep your whole face in view, relax, and hold still.");
+      return;
+    }
+    if (attempt.samples.length) {
+      const start = attempt.position;
+      const shift = Math.hypot(position.x - start.x, position.y - start.y);
+      const sizeChange = Math.abs(position.size / start.size - 1);
+      if (ts - attempt.lastFrame > NEUTRAL_MAX_GAP_MS || shift > NEUTRAL_MAX_SHIFT ||
+          sizeChange > NEUTRAL_MAX_SIZE_CHANGE || !stableNeutralSample(attempt.samples[0], sample)) {
+        attempt.samples.length = 0;
+      }
+    }
+    if (!attempt.samples.length) {
+      attempt.start = ts;
+      attempt.position = position;
+    }
+    setCountdown("Hold", NEUTRAL_HOLD_PROMPT);
+    attempt.samples.push(sample);
+    attempt.lastFrame = ts;
+    if (ts - attempt.start < NEUTRAL_HOLD_MS || attempt.samples.length < NEUTRAL_MIN_FRAMES) return;
+
+    neutralProfile = makeNeutralProfile(attempt.camera, attempt.samples);
+    try {
+      localStorage.setItem(NEUTRAL_STORE_KEY, JSON.stringify(neutralProfile));
+      endCalibration("Neutral calibration saved for this camera.");
+    } catch (_) {
+      endCalibration("Calibration is active for this visit. The browser couldn’t save the reference.");
+    }
+  }
+
   // ---------- Teaching ----------
   function startTeach(key) {
-    if (!running || paused) {
+    if (!canProcessFrame() || document.hidden) {
       showError("Start the camera first, then tap Teach.");
       return;
     }
+    if (teachCountdown !== null || capture || calibrationCapture) return;
     clearError();
-    const cd = $("countdown"), n = $("cdN"), msg = $("cdMsg");
-    cd.hidden = false;
-    stage.scrollIntoView({ block: "nearest" });
-    let count = 3;
-    n.textContent = count;
-    msg.textContent = "Get ready to make your " + labelOf(key).toLowerCase() + " face";
-    const tick = setInterval(() => {
-      count -= 1;
-      if (count > 0) { n.textContent = count; return; }
-      clearInterval(tick);
-      n.textContent = "Hold";
-      msg.textContent = "Keep your " + labelOf(key).toLowerCase() + " face for 3 seconds";
+    teachCountdown = startCountdown("Get ready to make your " + labelOf(key).toLowerCase() + " face", () => {
+      teachCountdown = null;
+      setCountdown("Hold", "Keep your " + labelOf(key).toLowerCase() + " face for 3 seconds");
       capture = { key, samples: [], start: performance.now() };
-    }, 1000);
+    });
+    updateCaptureAvailability();
   }
 
   function finishTeach() {
     const { key, samples } = capture;
     capture = null;
-    $("countdown").hidden = true;
+    countdown.hidden = true;
+    updateCaptureAvailability();
     if (samples.length < 4) {
       showError("Couldn’t see your face clearly enough. Keep your whole face in view and try again.");
       return;
@@ -846,6 +1004,8 @@ canvas.timeline {
     const ctx = overlay.getContext("2d");
 
     if (!res.faceLandmarks || !res.faceLandmarks.length) {
+      collectNeutralSample(null, null, ts);
+      showCalibrationCue(neutralAdjustment(neutralProfile, activeCamera, null).cue);
       ctx.clearRect(0, 0, w, h);
       renderNoFace();
       return;
@@ -855,6 +1015,19 @@ canvas.timeline {
     let minX = 1, minY = 1, maxX = 0, maxY = 0;
     for (const p of lm) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
     const bx = minX * w, by = minY * h, bw = (maxX - minX) * w, bh = (maxY - minY) * h;
+    const categories = res.faceBlendshapes?.[0]?.categories;
+    const cats = Array.isArray(categories) && categories.every(c => Number.isFinite(c?.score)) ? categories : [];
+    const sample = neutralProfile || calibrationCapture ?
+      neutralSample(res.facialTransformationMatrixes?.[0], cats) : null;
+    if (calibrationCapture) {
+      const wholeFace = minX >= 0 && minY >= 0 && maxX <= 1 && maxY <= 1 && bw > 0 && bh > 0;
+      const position = wholeFace ? {
+        x: (minX + maxX) / 2,
+        y: (minY + maxY) / 2,
+        size: Math.max(maxX - minX, maxY - minY)
+      } : null;
+      collectNeutralSample(sample, position, ts);
+    }
 
     // Square crop around the face for the expression model
     const side = Math.max(bw, bh) * 1.08;
@@ -865,7 +1038,6 @@ canvas.timeline {
     const base = await scoreFace();
     if (version !== frameVersion) return;
 
-    const cats = (res.faceBlendshapes && res.faceBlendshapes[0]) ? res.faceBlendshapes[0].categories : [];
     const blend = cats.map(c => c.score);
     const feat = blend.length ? featureVector(blend, base) : null;
 
@@ -873,8 +1045,10 @@ canvas.timeline {
     checkCaptureDone();
 
     const probs = feat ? applyPersonal(base, feat) : base;
+    const { weight, cue } = neutralAdjustment(neutralProfile, activeCamera, sample);
+    showCalibrationCue(cue);
     ctx.clearRect(0, 0, w, h);
-    render(probs, { x: bx, y: by, width: bw, height: bh });
+    render(probs, { x: bx, y: by, width: bw, height: bh }, weight);
   }
 
   function clearReadings() {
@@ -900,10 +1074,10 @@ canvas.timeline {
     drawTimeline();
   }
 
-  function render(raw, b) {
+  function render(raw, b, neutralWeight) {
     if (!showingFace) guide.hidden = true;
     showingFace = true;
-    recordFrame(raw);
+    recordFrame(blendNeutral(raw, neutralWeight));
     if (!smoothed || !smoothing) {
       smoothed = {}; KEYS.forEach(k => smoothed[k] = raw[k] || 0);
     } else {
@@ -911,7 +1085,10 @@ canvas.timeline {
       KEYS.forEach(k => smoothed[k] = smoothed[k] * (1 - a) + (raw[k] || 0) * a);
     }
 
-    const topKey = topOf(smoothed), topVal = smoothed[topKey];
+    // Smooth the ordinary scores so a prior calibration weight can't leak into
+    // the next frame after a meaningful expression or head-angle change.
+    const display = blendNeutral(smoothed, neutralWeight);
+    const topKey = topOf(display), topVal = display[topKey];
     const col = colorOf(topKey);
 
     const ctx = overlay.getContext("2d");
@@ -925,7 +1102,7 @@ canvas.timeline {
     subEl.textContent = Math.round(topVal * 100) + "% expression score";
 
     KEYS.forEach(k => {
-      const v = smoothed[k];
+      const v = display[k];
       rows[k].fill.style.width = (v * 100).toFixed(1) + "%";
       rows[k].pct.textContent = Math.round(v * 100) + "%";
       rows[k].row.classList.toggle("top", k === topKey);
@@ -1243,7 +1420,11 @@ canvas.timeline {
   });
 
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden && running && !paused) pauseBtn.click();
+    if (document.hidden) {
+      endCalibration("Calibration canceled when you left this tab. Resume the camera and try again.");
+      if (running && !paused) pauseBtn.click();
+    }
+    updateCaptureAvailability();
   });
 })();
 </script>
